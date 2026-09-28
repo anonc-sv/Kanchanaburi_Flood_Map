@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>สถานการณ์น้ำ กาญจนบุรี</title>
+<meta name="description" content="แผนที่ระดับน้ำ ฝน เขื่อน และพื้นที่น้ำท่วมจากดาวเทียม จังหวัดกาญจนบุรี อัปเดตอัตโนมัติ">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌊</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600&family=Chakra+Petch:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#12303a; --ink-2:#4b6570; --paper:#f3f6f4; --panel:#ffffff; --rule:#d7e0dd;
+  --lv1:#9b6b3c; --lv2:#b9a37a; --lv3:#2e8b7a; --lv4:#c9962e; --lv5:#c43d2b;
+  --flood:#2b6cd9; --rain:#5b58c9; --dam:#12303a; --focus:#2b6cd9;
+  --ui:"Anuphan",system-ui,"Noto Sans Thai","Leelawadee UI",sans-serif;
+  --num:"Chakra Petch","Anuphan",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ink:#e3ecea; --ink-2:#9db2b8; --paper:#0f1d22; --panel:#152830; --rule:#26404a;
+    --lv3:#3fb39c; --lv4:#e0ad45; --lv5:#ef6a55; --flood:#5a93f0; --rain:#8f8cf0; --dam:#e3ecea; --focus:#7aaaf5;
+  }
+}
+:root[data-theme="dark"]{
+  --ink:#e3ecea; --ink-2:#9db2b8; --paper:#0f1d22; --panel:#152830; --rule:#26404a;
+  --lv3:#3fb39c; --lv4:#e0ad45; --lv5:#ef6a55; --flood:#5a93f0; --rain:#8f8cf0; --dam:#e3ecea; --focus:#7aaaf5;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--paper);color:var(--ink);font:15px/1.6 var(--ui);display:grid;grid-template-columns:380px 1fr;height:100%;overflow:hidden}
+#map{height:100%;background:var(--paper)}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ---------- panel ---------- */
+.panel{background:var(--panel);border-right:1px solid var(--rule);overflow-y:auto;display:flex;flex-direction:column;
+  padding:max(20px,env(safe-area-inset-top)) 22px max(18px,env(safe-area-inset-bottom));z-index:500}
+.handle{display:none}
+h1{font:700 26px/1.2 var(--num);margin:0;letter-spacing:.2px}
+.updated{color:var(--ink-2);font-size:13px;margin:4px 0 16px}
+.updated.stale{color:var(--lv5)}
+.headline{border-left:4px solid var(--lv3);padding:4px 0 4px 12px;margin:0 0 22px}
+.headline.warn{border-color:var(--lv4)} .headline.alert{border-color:var(--lv5)}
+.headline p{margin:0}
+.headline b{font-family:var(--num);font-weight:700}
+h2{font:600 16px/1.3 var(--num);margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+h2 small{font:400 12px var(--ui);color:var(--ink-2)}
+section{margin-bottom:24px}
+
+/* staff-gauge list: the signature element */
+.gauges{list-style:none;margin:0;padding:0}
+.gauge{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:7px 6px;margin:0 -6px;border-radius:6px;cursor:pointer;border:0;background:none;width:calc(100% + 12px);text-align:left;color:inherit;font:inherit}
+.gauge:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}
+.gauge .nm{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gauge .nm span{color:var(--ink-2);font-size:12px}
+.gauge .pc{font:600 14px var(--num);text-align:right}
+.staff{grid-column:1/-1;position:relative;height:10px;border-radius:2px;
+  background:repeating-linear-gradient(90deg,transparent 0 calc(100%/13 - 1px),color-mix(in srgb,var(--ink) 18%,transparent) calc(100%/13 - 1px) calc(100%/13)),
+  color-mix(in srgb,var(--ink) 7%,transparent)}
+.staff i{position:absolute;inset:0 auto 0 0;border-radius:2px}
+.staff::after{content:"";position:absolute;left:calc(100%/1.3);top:-3px;bottom:-3px;width:2px;background:var(--ink)}
+.gauge-scale{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);margin:2px 0 0;padding-right:calc(100% - 100%/1.3 - 14px)}
+.gauge-scale span:last-child{font-weight:600;color:var(--ink)}
+.more{background:none;border:0;color:var(--focus);font:500 13px var(--ui);padding:6px 0;cursor:pointer}
+
+.districts{list-style:none;margin:0;padding:0;font-size:14px}
+.districts li{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--rule)}
+.districts li b{font:600 14px var(--num)}
+.empty{color:var(--ink-2);font-size:14px;margin:0}
+
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.seg button{border:0;background:none;color:var(--ink-2);font:500 12px var(--ui);padding:3px 9px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--flood);color:#fff}
+
+.layers label{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:14px;cursor:pointer}
+.layers input{accent-color:var(--flood);width:16px;height:16px}
+.key{display:inline-block;width:12px;height:12px;border-radius:50%;flex:none}
+.key.sq{border-radius:2px}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px 12px;font-size:13px;color:var(--ink-2);margin-top:8px}
+.legend span{display:flex;align-items:center;gap:8px}
+
+.sources{margin-top:auto;font-size:12px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:12px}
+.sources ul{list-style:none;padding:0;margin:0 0 8px}
+.sources li{display:flex;justify-content:space-between;gap:8px}
+.sources .bad{color:var(--lv5)}
+.sources p{margin:6px 0 0}
+.sources a{color:inherit}
+
+/* ---------- map bits ---------- */
+.leaflet-container{font:14px/1.5 var(--ui)}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--panel);color:var(--ink);box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.leaflet-popup-content{margin:12px 14px;min-width:220px}
+.pop h3{font:600 15px/1.3 var(--num);margin:0 0 2px}
+.pop .sub{color:var(--ink-2);font-size:12px;margin-bottom:8px}
+.pop dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:13px}
+.pop dt{color:var(--ink-2)} .pop dd{margin:0;font-family:var(--num);font-weight:600;text-align:right}
+.pop .tag{display:inline-block;color:#fff;border-radius:4px;padding:0 6px;font-size:12px;margin-bottom:6px}
+.pop svg{display:block;width:100%;height:56px;margin-top:8px}
+.pop .note{font-size:11px;color:var(--ink-2);margin-top:4px}
+.pulse{animation:pulse 1.8s ease-out infinite;transform-origin:center;transform-box:fill-box}
+@keyframes pulse{0%{stroke-width:2;stroke-opacity:1}100%{stroke-width:14;stroke-opacity:0}}
+@media (prefers-reduced-motion: reduce){.pulse{animation:none}}
+.dam-ico{width:18px;height:18px;background:var(--dam);clip-path:polygon(50% 0,100% 100%,0 100%);border:0}
+.theme-btn{position:absolute;right:12px;top:max(12px,env(safe-area-inset-top));z-index:600;background:var(--panel);color:var(--ink);border:1px solid var(--rule);border-radius:8px;padding:6px 10px;font:500 13px var(--ui);cursor:pointer}
+
+/* ---------- mobile: bottom sheet ---------- */
+@media (max-width: 760px){
+  body{display:block;position:relative}
+  #map{position:absolute;inset:0}
+  .panel{position:absolute;left:0;right:0;bottom:0;height:46%;border-right:0;border-top:1px solid var(--rule);border-radius:14px 14px 0 0;
+    box-shadow:0 -6px 24px rgba(0,0,0,.18);padding-top:8px;transition:height .25s ease}
+  .panel.min{height:132px;overflow:hidden}
+  .panel.max{height:88%}
+  .handle{display:block;align-self:center;width:44px;height:5px;border-radius:3px;background:var(--rule);border:0;margin:0 0 10px;padding:0;cursor:pointer;flex:none}
+  h1{font-size:21px}
+  .leaflet-bottom{bottom:46%}
+  .panel.min ~ #map .leaflet-bottom{bottom:132px}
+}
+</style>
+</head>
+<body>
+<aside class="panel" id="panel" aria-label="สรุปสถานการณ์น้ำ">
+  <button class="handle" id="handle" aria-label="ขยายหรือย่อแผงข้อมูล"></button>
+  <h1>สถานการณ์น้ำ กาญจนบุรี</h1>
+  <div class="updated" id="updated">กำลังโหลดข้อมูล…</div>
+  <div class="headline" id="headline"><p>กำลังโหลดข้อมูล…</p></div>
+
+  <section>
+    <h2>ระดับน้ำเทียบตลิ่ง <small>ขีดตั้ง = ระดับตลิ่ง</small></h2>
+    <ul class="gauges" id="gauges"></ul>
+    <div class="gauge-scale" aria-hidden="true"><span>0%</span><span>50%</span><span>ตลิ่ง</span></div>
+    <button class="more" id="more" hidden></button>
+  </section>
+
+  <section>
+    <h2>พื้นที่น้ำท่วมจากดาวเทียม
+      <span class="seg" id="period" role="group" aria-label="ช่วงเวลาภาพดาวเทียม">
+        <button data-p="1day">1 วัน</button><button data-p="3days" aria-pressed="true">3 วัน</button><button data-p="7days">7 วัน</button>
+      </span>
+    </h2>
+    <ul class="districts" id="districts"></ul>
+    <div class="updated" id="acq" style="margin:6px 0 0"></div>
+  </section>
+
+  <section class="layers">
+    <h2>ชั้นข้อมูล</h2>
+    <label><input type="checkbox" id="l-flood" checked><span class="key sq" style="background:var(--flood)"></span>พื้นที่น้ำท่วม (ดาวเทียม)</label>
+    <label><input type="checkbox" id="l-wl" checked><span class="key" style="background:var(--lv3)"></span>สถานีวัดระดับน้ำ</label>
+    <label><input type="checkbox" id="l-rain"><span class="key sq" style="background:var(--rain)"></span>ฝนสะสม 24 ชม.</label>
+    <label><input type="checkbox" id="l-dam" checked><span class="key sq dam-ico" style="width:12px;height:12px"></span>เขื่อน</label>
+    <div class="legend">
+      <span><i class="key" style="background:var(--lv5)"></i>ล้นตลิ่ง (&gt;100%)</span>
+      <span><i class="key" style="background:var(--lv4)"></i>น้ำมาก (70–100%)</span>
+      <span><i class="key" style="background:var(--lv3)"></i>ปกติ (30–70%)</span>
+      <span><i class="key" style="background:var(--lv2)"></i>น้ำน้อย (10–30%)</span>
+      <span><i class="key" style="background:var(--lv1)"></i>น้อยวิกฤต (≤10%)</span>
+    </div>
+  </section>
+
+  <footer class="sources">
+    <ul id="sources"></ul>
+    <p>ข้อมูลระดับน้ำ ฝน และเขื่อนจาก <a href="https://www.thaiwater.net" target="_blank" rel="noopener">คลังข้อมูลน้ำแห่งชาติ (สสน.)</a> พื้นที่น้ำท่วมจาก <a href="https://flood.gistda.or.th" target="_blank" rel="noopener">GISTDA</a></p>
+    <p>แผนที่นี้รวบรวมข้อมูลอัตโนมัติ ไม่ใช่ประกาศเตือนภัยทางการ ติดตามประกาศจาก ปภ. (สายด่วน 1784) และจังหวัด</p>
+  </footer>
+</aside>
+<div id="map" role="application" aria-label="แผนที่กาญจนบุรี"></div>
+<button class="theme-btn" id="theme" aria-label="สลับโหมดสว่างหรือมืด">◐</button>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+const REFRESH_MS = 5 * 60 * 1000;
+const STALE_H = 3;
+const LEVEL = {
+  5: {name:"ล้นตลิ่ง", v:"--lv5"}, 4: {name:"น้ำมาก", v:"--lv4"}, 3: {name:"ปกติ", v:"--lv3"},
+  2: {name:"น้ำน้อย", v:"--lv2"}, 1: {name:"น้อยวิกฤต", v:"--lv1"}
+};
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const lvColor = l => css((LEVEL[l] || {v:"--ink-2"}).v);
+const fmt = (n, d = 2) => n == null ? "–" : Number(n).toLocaleString("th-TH", {minimumFractionDigits:d, maximumFractionDigits:d});
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = iso => {
+  if (!iso) return "ไม่ทราบเวลา";
+  const d = new Date(iso);
+  return d.toLocaleString("th-TH", {day:"numeric", month:"short", hour:"2-digit", minute:"2-digit", timeZone:"Asia/Bangkok"});
+};
+const ago = iso => {
+  if (!iso) return null;
+  const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  if (m < 1) return "เมื่อสักครู่";
+  if (m < 60) return `${m} นาทีที่แล้ว`;
+  const h = Math.floor(m / 60);
+  return h < 48 ? `${h} ชม. ที่แล้ว` : `${Math.floor(h / 24)} วันที่แล้ว`;
+};
+async function getJSON(path) {
+  try {
+    const r = await fetch(`${path}?t=${Math.floor(Date.now() / 60000)}`, {cache:"no-store"});
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
+}
+
+/* ---------------- theme ---------------- */
+let theme = null;
+try { theme = localStorage.getItem("kflood-theme"); } catch {}
+if (theme) document.documentElement.dataset.theme = theme;
+const isDark = () => theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+
+/* ---------------- map ---------------- */
+const map = L.map("map", {zoomControl:false, preferCanvas:false}).setView([14.6, 99.0], 8);
+L.control.zoom({position:"bottomright"}).addTo(map);
+L.control.scale({imperial:false, position:"bottomleft"}).addTo(map);
+const tileUrl = () => `https://{s}.basemaps.cartocdn.com/${isDark() ? "dark_all" : "light_all"}/{z}/{x}/{y}{r}.png`;
+const base = L.tileLayer(tileUrl(), {
+  maxZoom: 18, subdomains: "abcd",
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+}).addTo(map);
+
+map.createPane("floodPane").style.zIndex = 390;
+const G = {
+  boundary: L.layerGroup().addTo(map),
+  flood: L.layerGroup().addTo(map),
+  wl: L.layerGroup().addTo(map),
+  rain: L.layerGroup(),
+  dam: L.layerGroup().addTo(map),
+};
+const wlMarkers = {};
+let state = {period: "3days", stations: null, status: null, history: {}, boundary: null, flood: {}, showAll: false};
+
+/* ---------------- boundary ---------------- */
+function drawBoundary() {
+  G.boundary.clearLayers();
+  if (!state.boundary) return;
+  L.geoJSON(state.boundary, {
+    interactive: false,
+    style: f => f.properties.kind === "province"
+      ? {color: css("--ink"), weight: 2, fill: false, opacity: .8}
+      : {color: css("--ink-2"), weight: .8, dashArray: "3 4", fill: false, opacity: .7}
+  }).addTo(G.boundary);
+  state.boundary.features.filter(f => f.properties.kind === "district").forEach(f => {
+    const c = L.geoJSON(f).getBounds().getCenter();
+    L.marker(c, {interactive:false, icon: L.divIcon({className:"", html:
+      `<span style="font:500 11px var(--ui);color:var(--ink-2);white-space:nowrap;text-shadow:0 0 3px var(--paper),0 0 3px var(--paper)">${esc(f.properties.name)}</span>`,
+      iconSize:[0,0]})}).addTo(G.boundary);
+  });
+}
+
+/* ---------------- water level ---------------- */
+function sparkline(series, bank) {
+  if (!series || series.length < 2) return "";
+  const vals = series.map(s => s[1]);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if (bank != null) { hi = Math.max(hi, bank); lo = Math.min(lo, bank - .5); }
+  if (hi - lo < .2) { hi += .1; lo -= .1; }
+  const W = 240, H = 56, x = i => i / (vals.length - 1) * W, y = v => H - 4 - (v - lo) / (hi - lo) * (H - 8);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const bankLine = bank != null ? `<line x1="0" x2="${W}" y1="${y(bank)}" y2="${y(bank)}" stroke="${css("--lv5")}" stroke-dasharray="4 3" stroke-width="1"/>` : "";
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="กราฟระดับน้ำย้อนหลัง">${bankLine}
+    <polyline points="${pts}" fill="none" stroke="${css("--flood")}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function trend(series) {
+  if (!series || series.length < 3) return null;
+  const last = series[series.length - 1], t0 = new Date(last[0]) - 3 * 3600e3;
+  const ref = [...series].reverse().find(s => new Date(s[0]) <= t0) || series[0];
+  const d = last[1] - ref[1];
+  const hrs = Math.max(.5, (new Date(last[0]) - new Date(ref[0])) / 3600e3);
+  return {d, hrs};
+}
+function wlPopup(p) {
+  const h = state.history[p.id];
+  const t = trend(h);
+  const lv = LEVEL[p.level];
+  const trendTxt = t ? `${t.d > 0.02 ? "▲ ขึ้น" : t.d < -0.02 ? "▼ ลง" : "ทรงตัว"} ${fmt(Math.abs(t.d))} ม. ใน ${fmt(t.hrs, 0)} ชม.` : "–";
+  return `<div class="pop">
+    ${lv ? `<span class="tag" style="background:${lvColor(p.level)}">${lv.name}</span>` : ""}
+    <h3>${esc(p.name || "สถานีวัดระดับน้ำ")}</h3>
+    <div class="sub">${esc([p.river, p.tambon && "ต." + p.tambon, p.district && "อ." + p.district].filter(Boolean).join(" "))}</div>
+    <dl>
+      <dt>ระดับน้ำ</dt><dd>${fmt(p.waterlevel_msl)} ม.รทก.</dd>
+      <dt>ระดับตลิ่ง</dt><dd>${fmt(p.bank_msl)} ม.รทก.</dd>
+      ${p.bank_msl != null && p.waterlevel_msl != null
+        ? (p.waterlevel_msl > p.bank_msl ? `<dt>สูงกว่าตลิ่ง</dt><dd style="color:${lvColor(5)}">${fmt(p.waterlevel_msl - p.bank_msl)} ม.</dd>` : `<dt>ต่ำกว่าตลิ่ง</dt><dd>${fmt(p.bank_msl - p.waterlevel_msl)} ม.</dd>`)
+        : `<dt>ต่ำกว่าตลิ่ง</dt><dd>–</dd>`}
+      <dt>เทียบความจุลำน้ำ</dt><dd>${p.percent != null ? fmt(p.percent, 0) + "%" : "–"}</dd>
+      <dt>แนวโน้ม</dt><dd>${trendTxt}</dd>
+    </dl>
+    ${sparkline(h, p.bank_msl)}
+    <div class="note">วัดเมื่อ ${when(p.observed_at)}${p.agency ? " โดย " + esc(p.agency) : ""}</div>
+  </div>`;
+}
+function drawWaterlevel() {
+  G.wl.clearLayers();
+  const feats = state.stations?.waterlevel || [];
+  feats.forEach(f => {
+    const p = f.properties, [lon, lat] = f.geometry.coordinates;
+    const c = lvColor(p.level);
+    const m = L.circleMarker([lat, lon], {
+      radius: p.level >= 5 ? 9 : p.level === 4 ? 8 : 6, color: p.level >= 5 ? c : css("--panel"), weight: 2,
+      fillColor: c, fillOpacity: .95, className: p.level >= 5 ? "pulse" : ""
+    }).bindPopup(() => wlPopup(p), {maxWidth: 300});
+    m.bindTooltip(esc(p.name || ""), {direction: "top", offset: [0, -6]});
+    m.addTo(G.wl);
+    wlMarkers[p.id] = m;
+  });
+}
+function drawGauges() {
+  const ul = document.getElementById("gauges"), more = document.getElementById("more");
+  const feats = (state.stations?.waterlevel || []).filter(f => f.properties.percent != null)
+    .sort((a, b) => b.properties.percent - a.properties.percent);
+  if (!feats.length) {
+    ul.innerHTML = `<li class="empty">${state.status?.sources?.waterlevel?.ok === false ? "ดึงข้อมูลระดับน้ำรอบล่าสุดไม่สำเร็จ" : "ไม่มีสถานีที่ระบุระดับตลิ่ง"}</li>`;
+    more.hidden = true; return;
+  }
+  const n = state.showAll ? feats.length : Math.min(8, feats.length);
+  ul.innerHTML = feats.slice(0, n).map(f => {
+    const p = f.properties, w = Math.min(130, Math.max(0, p.percent)) / 1.3;
+    return `<li><button class="gauge" data-id="${esc(p.id)}" aria-label="${esc(p.name)} ${fmt(p.percent,0)} เปอร์เซ็นต์ของตลิ่ง">
+      <span class="nm">${esc(p.name || "–")} <span>${esc(p.district ? "อ." + p.district : "")}</span></span>
+      <span class="pc" style="color:${p.level >= 4 ? lvColor(p.level) : "inherit"}">${fmt(p.percent, 0)}%</span>
+      <span class="staff"><i style="width:${w}%;background:${lvColor(p.level)}"></i></span></button></li>`;
+  }).join("");
+  more.hidden = feats.length <= 8;
+  more.textContent = state.showAll ? "แสดงเฉพาะ 8 สถานีแรก" : `ดูทั้งหมด ${feats.length} สถานี`;
+  ul.querySelectorAll(".gauge").forEach(b => b.onclick = () => {
+    const m = wlMarkers[b.dataset.id]; if (!m) return;
+    map.flyTo(m.getLatLng(), 12, {duration: .8}); m.openPopup(); collapseOnMobile();
+  });
+}
+document.getElementById("more").onclick = () => { state.showAll = !state.showAll; drawGauges(); };
+
+/* ---------------- rain ---------------- */
+const rainColor = mm => mm >= 90 ? "#7a1fa2" : mm >= 35 ? "#b23a8f" : mm >= 10 ? css("--rain") : "#9fb8e8";
+function drawRain() {
+  G.rain.clearLayers();
+  (state.stations?.rain || []).filter(f => f.properties.rain_24h > 0).forEach(f => {
+    const p = f.properties, [lon, lat] = f.geometry.coordinates, s = Math.min(22, 8 + Math.sqrt(p.rain_24h) * 1.6);
+    L.marker([lat, lon], {icon: L.divIcon({className: "", iconSize: [s, s],
+      html: `<div style="width:${s}px;height:${s}px;background:${rainColor(p.rain_24h)};border:1.5px solid var(--panel);border-radius:3px;opacity:.9"></div>`})})
+      .bindPopup(`<div class="pop"><h3>${esc(p.name || "สถานีวัดฝน")}</h3><div class="sub">${esc(p.district ? "อ." + p.district : "")}</div>
+        <dl><dt>ฝน 24 ชม.</dt><dd>${fmt(p.rain_24h, 1)} มม.</dd></dl><div class="note">ถึง ${when(p.observed_at)}</div></div>`)
+      .addTo(G.rain);
+  });
+}
+
+/* ---------------- dams ---------------- */
+function drawDams() {
+  G.dam.clearLayers();
+  (state.stations?.dams || []).forEach(f => {
+    const p = f.properties, [lon, lat] = f.geometry.coordinates;
+    L.marker([lat, lon], {icon: L.divIcon({className: "", html: '<div class="dam-ico"></div>', iconSize: [18, 18]})})
+      .bindTooltip(esc(p.name || "เขื่อน"), {direction: "top", offset: [0, -8]})
+      .bindPopup(`<div class="pop"><h3>${esc(p.name || "เขื่อน")}</h3>
+        <dl><dt>ปริมาณน้ำ</dt><dd>${p.storage_percent != null ? fmt(p.storage_percent, 0) + "% ของความจุ" : "–"}</dd>
+        <dt>ปริมาณน้ำในอ่าง</dt><dd>${fmt(p.storage_mcm, 0)} ล้าน ลบ.ม.</dd>
+        <dt>น้ำไหลเข้า</dt><dd>${fmt(p.inflow_mcm)} ล้าน ลบ.ม.</dd>
+        <dt>น้ำระบาย</dt><dd>${fmt(p.release_mcm)} ล้าน ลบ.ม.</dd></dl>
+        <div class="note">ข้อมูลวันที่ ${when(p.observed_at)}</div></div>`)
+      .addTo(G.dam);
+  });
+}
+
+/* ---------------- flood ---------------- */
+async function loadFlood(period) {
+  if (!(period in state.flood)) state.flood[period] = await getJSON(`data/flood_${period}.geojson`);
+  return state.flood[period];
+}
+async function drawFlood() {
+  G.flood.clearLayers();
+  const fc = await loadFlood(state.period);
+  if (fc?.features?.length) {
+    L.geoJSON(fc, {pane: "floodPane", style: {stroke: false, fillColor: css("--flood"), fillOpacity: .6},
+      onEachFeature: (f, l) => l.bindTooltip(`น้ำท่วม ${fmt(f.properties.area_rai, 0)} ไร่<br>${esc(f.properties.tambon ? "ต." + f.properties.tambon : "")} ${esc(f.properties.district ? "อ." + f.properties.district : "")}<br><small>ภาพวันที่ ${when(f.properties.acquired_at)}</small>`, {sticky: true})
+    }).addTo(G.flood);
+  }
+  drawDistricts();
+}
+function drawDistricts() {
+  const s = state.status?.sources?.[`flood_${state.period}`];
+  const ul = document.getElementById("districts"), acq = document.getElementById("acq");
+  if (!s) { ul.innerHTML = `<li class="empty">ยังไม่มีข้อมูลดาวเทียม (ต้องตั้งค่า API key ของ GISTDA)</li>`; acq.textContent = ""; return; }
+  if (!s.ok && !s.count) { ul.innerHTML = `<li class="empty">ดึงข้อมูลดาวเทียมไม่สำเร็จ: ${esc(s.error || "")}</li>`; acq.textContent = ""; return; }
+  const rows = Object.entries(s.by_district || {}).sort((a, b) => b[1] - a[1]);
+  ul.innerHTML = rows.length
+    ? rows.map(([d, a]) => `<li><span>อ.${esc(d)}</span><b>${fmt(a, 0)} ไร่</b></li>`).join("")
+    : `<li class="empty">ดาวเทียมไม่พบพื้นที่น้ำท่วมในรอบนี้ (เรดาร์อาจมองไม่เห็นน้ำท่วมในเขตเมืองหรือใต้ต้นไม้)</li>`;
+  acq.textContent = s.acquired?.length ? `ภาพดาวเทียมล่าสุด ${when(s.acquired[s.acquired.length - 1])}` : "";
+}
+document.querySelectorAll("#period button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#period button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  state.period = b.dataset.p; drawFlood(); drawHeadline();
+});
+
+/* ---------------- headline & status ---------------- */
+function drawHeadline() {
+  const el = document.getElementById("headline");
+  const wl = state.stations?.waterlevel || [];
+  const over = wl.filter(f => f.properties.level >= 5), high = wl.filter(f => f.properties.level === 4);
+  const fs = state.status?.sources?.[`flood_${state.period}`];
+  const lines = [];
+  if (over.length) lines.push(`<b>${over.length}</b> สถานีน้ำล้นตลิ่ง: ${over.slice(0, 3).map(f => esc(f.properties.name)).join(", ")}${over.length > 3 ? " และอื่นๆ" : ""}`);
+  if (high.length) lines.push(`<b>${high.length}</b> สถานีน้ำมาก ควรเฝ้าระวัง`);
+  if (!over.length && !high.length && wl.length) lines.push(`ระดับน้ำทั้ง <b>${wl.length}</b> สถานีอยู่ต่ำกว่าเกณฑ์เฝ้าระวัง`);
+  if (fs?.area_rai) lines.push(`ดาวเทียมพบน้ำท่วม <b>${fmt(fs.area_rai, 0)}</b> ไร่ ใน ${Object.keys(fs.by_district || {}).length} อำเภอ`);
+  if (!lines.length) lines.push("ยังไม่มีข้อมูล รอระบบดึงข้อมูลรอบแรก");
+  el.className = "headline" + (over.length ? " alert" : high.length || fs?.area_rai ? " warn" : "");
+  el.innerHTML = lines.map(l => `<p>${l}</p>`).join("");
+}
+function drawStatus() {
+  const st = state.status, up = document.getElementById("updated");
+  if (!st) { up.textContent = "ยังไม่มีข้อมูล รอระบบดึงข้อมูลรอบแรก"; return; }
+  const stale = (Date.now() - new Date(st.generated_at)) / 3600e3 > STALE_H;
+  up.className = "updated" + (stale ? " stale" : "");
+  up.textContent = `อัปเดต ${when(st.generated_at)} (${ago(st.generated_at)})${stale ? " — ข้อมูลอาจไม่เป็นปัจจุบัน" : ""}`;
+  document.getElementById("sources").innerHTML = Object.entries(st.sources).map(([k, s]) =>
+    `<li><span>${esc(s.label)}</span><span class="${s.ok ? "" : "bad"}" title="${esc(s.error || "")}">${s.ok ? (s.count ?? 0) + " รายการ" : "ขัดข้อง"}</span></li>`).join("");
+}
+
+/* ---------------- layer toggles ---------------- */
+[["l-flood", "flood"], ["l-wl", "wl"], ["l-rain", "rain"], ["l-dam", "dam"]].forEach(([id, g]) => {
+  const cb = document.getElementById(id);
+  cb.onchange = () => cb.checked ? G[g].addTo(map) : G[g].remove();
+});
+
+/* ---------------- mobile sheet ---------------- */
+const panel = document.getElementById("panel");
+const mobile = () => matchMedia("(max-width: 760px)").matches;
+document.getElementById("handle").onclick = () => {
+  if (panel.classList.contains("max")) { panel.classList.remove("max"); panel.classList.add("min"); }
+  else if (panel.classList.contains("min")) panel.classList.remove("min");
+  else panel.classList.add("max");
+  setTimeout(() => map.invalidateSize(), 300);
+};
+function collapseOnMobile() { if (mobile()) { panel.classList.remove("max"); panel.classList.add("min"); } }
+
+/* ---------------- theme toggle ---------------- */
+document.getElementById("theme").onclick = () => {
+  theme = isDark() ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem("kflood-theme", theme); } catch {}
+  base.setUrl(tileUrl()); redraw();
+};
+
+/* ---------------- load ---------------- */
+function redraw() { drawBoundary(); drawWaterlevel(); drawGauges(); drawRain(); drawDams(); drawFlood(); drawHeadline(); drawStatus(); }
+async function load(first) {
+  const [boundary, stations, status, history] = await Promise.all([
+    first ? getJSON("data/boundary.geojson") : state.boundary,
+    getJSON("data/stations.json"), getJSON("data/status.json"), getJSON("data/history.json")]);
+  state.boundary = boundary; state.stations = stations; state.status = status; state.history = history || {};
+  state.flood = {};
+  redraw();
+  if (first && boundary) map.fitBounds(L.geoJSON(boundary).getBounds(),
+    mobile() ? {paddingTopLeft: [10, 10], paddingBottomRight: [10, panel.offsetHeight + 10]} : {padding: [10, 10]});
+}
+load(true);
+setInterval(() => { if (!document.hidden) load(false); }, REFRESH_MS);
+setInterval(drawStatus, 60000);
+})();
+</script>
+</body>
+</html>
